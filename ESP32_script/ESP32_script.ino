@@ -31,11 +31,12 @@ void loop() {
     } else {
         if (client.available()) {
             String message = client.readStringUntil('\n'); // Lire jusqu'au retour à la ligne
-            Serial.print("Reçu: ");
+            Serial.print("Recept: ");
             Serial.println(message);
 
             // Répondre au client
-            client.println("Message reçu !");
+            client.println("ping");
+            client.stop();
         }
     }
 }
