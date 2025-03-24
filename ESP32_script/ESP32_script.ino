@@ -34,19 +34,21 @@ void setup() {
         client = server.available();
         delay(100);
     }
-    Serial.println("Client connecté, en attente du nombre de LEDs...");
+
+    client.println("setup");
+    Serial.println("Requiring setup");
 
     // Lire le nombre de LEDs
     if (client.available()) {
         numLeds = client.readStringUntil('\n').toInt();
-        Serial.print("Nombre de LEDs : ");
+        Serial.print("Number of LED : ");
         Serial.println(numLeds);
 
         if (numLeds > 0) {
             strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>(numLeds, PIN_LED);
             strip->Begin();
             strip->Show();  // Éteindre les LEDs au démarrage
-            Serial.println("LED strip initialisé !");
+            Serial.println("LED strip initialized !");
         }
     }
 }
