@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <NeoPixelBus.h>
 
-const uint8_t PIN_LED = 6;  // GPIO connecté aux LED
+const uint8_t PIN_LED = 13;  // GPIO connecté aux LED
 uint16_t numLeds = 0;
 NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod> *strip = nullptr;
 
@@ -38,44 +38,54 @@ void setup() {
     client.println("setup");
     Serial.println("Requiring setup");
 
-    // Lire le nombre de LEDs
-    if (client.available()) {
-        numLeds = client.readStringUntil('\n').toInt();
-        Serial.print("Number of LED : ");
-        Serial.println(numLeds);
 
-        if (numLeds > 0) {
-            strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>(numLeds, PIN_LED);
-            strip->Begin();
-            strip->Show();  // Éteindre les LEDs au démarrage
-            Serial.println("LED strip initialized !");
-        }
+    // Lire le nombre de LEDs
+    while (numLeds == 0){
+      if (client.available()) {
+          numLeds = client.readStringUntil('\n').toInt();
+          Serial.print("Number of LED : ");
+          Serial.println(numLeds);
+
+          if (numLeds > 0) {
+              strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>(numLeds, PIN_LED);
+              strip->Begin();
+              strip->Show();  // Éteindre les LEDs au démarrage
+              Serial.println("LED strip initialized !");
+          }
+      }
     }
+    server.close();
 }
 
 void loop() {
-    if (!client) {
-        client = server.available();  // Accepte une nouvelle connexion client
-    } else {
-        if (client.available()) {
-            String colorSet = client.readStringUntil('\n');
-            Serial.print("Reçu : ");
-            Serial.println(colorSet);
+  delay(500);
 
-            // Conversion de la couleur
-            int r, g, b;
-            if (sscanf(colorSet.c_str(), "%d,%d,%d", &r, &g, &b) == 3) {
-                RgbColor newColor(r, g, b);
+  if (!server){
+    server.begin();
+  }
 
-                // Appliquer la couleur sur toutes les LEDs
-                for (int i = 0; i < numLeds; i++) {
-                    strip->SetPixelColor(i, newColor);
-                }
-                strip->Show();
-                Serial.println("Couleur appliquée !");
-            } else {
-                Serial.println("Erreur : format couleur invalide (attendu : R,G,B)");
+  if (!client) {
+      client = server.available();  // Accepte une nouvelle connexion client
+  } else {
+      if (client.available()) {
+        String colorSet = client.readStringUntil('\n');
+        Serial.print("Reçu : ");
+        Serial.println(colorSet);
+
+        // Conversion de la couleur
+        int r, g, b;
+        if (sscanf(colorSet.c_str(), "%d,%d,%d", &r, &g, &b) == 3) {
+          RgbColor newColor(r, g, b);
+
+          // Appliquer la couleur sur toutes les LEDs
+          for (int i = 0; i < numLeds; i++) {
+            strip->SetPixelColor(i, newColor);
             }
+            strip->Show();
+            Serial.println("Couleur appliquée !");
+        } else {
+            Serial.println("Erreur : format couleur invalide (attendu : R,G,B)");
         }
     }
+  }
 }
