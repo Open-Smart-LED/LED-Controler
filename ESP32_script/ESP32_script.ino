@@ -1,91 +1,189 @@
 #include <WiFi.h>
 #include <NeoPixelBus.h>
+#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <base64.h>
+#include "mbedtls/base64.h"
+#include <Wire.h>
+#include "Adafruit_AS7341.h"
 
-const uint8_t PIN_LED = 13;  // GPIO connecté aux LED
-uint16_t numLeds = 0;
-NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod> *strip = nullptr;
-
+// Wifi values
 const char* ssid = "Freebox-4ACC21";
 const char* password = "imbibere2-evici3.-suberat?-exultetis";
 
-WiFiServer server(2025);  // Serveur TCP sur le port 2025
+// API values
+const char* ConfigURL = "http://192.168.1.109:1908/config/";
+const char* TestURL = "http://192.168.1.109:1908/";
+const char* GetColorURL = "http://192.168.1.109:1908/rgb/";
+const char* jwtURL = "http://192.168.1.109:1908/jwt/";
+
+// Initialization JWT token
+String jwtToken = "";
+
+// Default LED GPIO
+int ledPin = 10;
+int nbLed = 10;
+
+// Use http
+//WiFiClientSecure client;
 WiFiClient client;
 
+
+NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>* strip = nullptr;
+Adafruit_AS7341 as7341;
+
 void setup() {
-    Serial.begin(115200);
-    
-    // Connexion au Wi-Fi
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    
-    // Wi-Fi connecté
-    Serial.println("\nConnecté !");
-    Serial.print("Adresse IP: ");
-    Serial.println(WiFi.localIP());
 
-    // Démarrer le serveur TCP
-    server.begin();
+  // ------------------------------------ //
+  // ------------ Basic setup ------------//
+  // ------------------------------------ //
+  Serial.begin(115200);
+  pinMode(2, OUTPUT);
+  digitalWrite(2, HIGH);
 
-    // Attendre une connexion client pour recevoir le nombre de LEDs
-    while (!client) {
-        client = server.available();
-        delay(100);
-    }
+  // ------------------------------------- //
+  // ------------- Connection -------------//
+  // ------------------------------------- //
+  WiFi.begin(ssid, password);
+  Serial.print("Connexion au Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnecté au Wi-Fi !");
+  Serial.print("Adresse IP: ");
+  Serial.println(WiFi.localIP());
 
-    client.println("setup");
-    Serial.println("Requiring setup");
+  // ------------------------------------- //
+  // --------------- Sensor ---------------//
+  // ------------------------------------- //
+
+  // ------------------------------------- //
+  // ------------- Get config -------------//
+  // ------------------------------------- //
+
+  HTTPClient http;
+  http.begin(ConfigURL);
+  int httpResponseCode = http.GET();
+  Serial.println(httpResponseCode); //debug
+
+  // Vérifie si la requête a réussi
+  if (httpResponseCode <= 0) {
+    Serial.println("Erreur de connexion");
+  }
+
+  String response = http.getString();
+  Serial.println("Réponse brute : " + response);//debug
+
+  // Parse le JSON
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, response);
+
+  if (error) {
+    Serial.print("Erreur de parsing JSON : ");
+    Serial.println(error.c_str());
+  }
+
+  nbLed = doc["LEDs"];
+  ledPin = doc["GPIO"];
+
+  Serial.println("Nombre de LEDs : " + String(nbLed));
+  Serial.println("GPIO LED : " + String(ledPin));
+  http.end();
 
 
-    // Lire le nombre de LEDs
-    while (numLeds == 0){
-      if (client.available()) {
-          numLeds = client.readStringUntil('\n').toInt();
-          Serial.print("Number of LED : ");
-          Serial.println(numLeds);
+  if (nbLed > 0) {
+    strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>(nbLed, ledPin);
+    strip->Begin();
+    strip->Show();  // Éteindre les LEDs au démarrage
+    Serial.println("LED strip initialized !");
+  }
+  digitalWrite(2, LOW);
 
-          if (numLeds > 0) {
-              strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod>(numLeds, PIN_LED);
-              strip->Begin();
-              strip->Show();  // Éteindre les LEDs au démarrage
-              Serial.println("LED strip initialized !");
-          }
-      }
-    }
-    server.close();
 }
 
 void loop() {
-  delay(500);
 
-  if (!server){
-    server.begin();
+  // Test if Wifi is connect
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi not connect !");
+    digitalWrite(2, HIGH);
+    delay(1500);
+    digitalWrite(2, LOW);
+    return;
   }
 
-  if (!client) {
-      client = server.available();  // Accepte une nouvelle connexion client
-  } else {
-      if (client.available()) {
-        String colorSet = client.readStringUntil('\n');
-        Serial.print("Reçu : ");
-        Serial.println(colorSet);
+  HTTPClient http;
+  http.begin(GetColorURL);
+  int httpResponseCode = http.GET();
+  Serial.println(httpResponseCode); //debug
 
-        // Conversion de la couleur
-        int r, g, b;
-        if (sscanf(colorSet.c_str(), "%d,%d,%d", &r, &g, &b) == 3) {
-          RgbColor newColor(r, g, b);
-
-          // Appliquer la couleur sur toutes les LEDs
-          for (int i = 0; i < numLeds; i++) {
-            strip->SetPixelColor(i, newColor);
-            }
-            strip->Show();
-            Serial.println("Couleur appliquée !");
-        } else {
-            Serial.println("Erreur : format couleur invalide (attendu : R,G,B)");
-        }
-    }
+  // Vérifie si la requête a réussi
+  if (httpResponseCode < 0) {
+    Serial.println("Erreur de connexion");
+    return
   }
+
+  String response = http.getString();
+  Serial.println("Réponse brute : " + response);//debug
+
+  // Parse le JSON
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, response);
+
+  if (error) {
+    Serial.print("Erreur de parsing JSON : ");
+    Serial.println(error.c_str());
+    return
+  }
+
+  int r = doc["red"];
+  int g = doc["green"];
+  int b = doc["blue"];
+  http.end();
+
+  RgbColor newColor(r, g, b);
+
+  // Appliquer la couleur sur toutes les LEDs
+  for (int i = 0; i < nbLed; i++) {
+    strip->SetPixelColor(i, newColor);
+  }
+  strip->Show();
+  Serial.println("Couleur appliquée !");
+  
+  delay(180000);
+}
+
+void getTokenJWT() {
+  HTTPClient http;
+  http.begin(client, jwtURL);
+  http.addHeader("Content-Type", "application/json");
+
+  StaticJsonDocument<200> jsonDoc;
+  jsonDoc["espID"] = "IW2F4LBWN0";
+  String jsonString;
+  serializeJson(jsonDoc, jsonString);
+
+  int httpResponseCode = http.POST(jsonString);
+  Serial.println(httpResponseCode);
+
+  if (httpResponseCode != 200) {
+    Serial.println(http.getString());
+    http.end();
+    return;
+  }
+
+  String response = http.getString();
+  http.end();
+
+  StaticJsonDocument<512> resDoc;
+  DeserializationError error = deserializeJson(resDoc, response);
+  if (error || !resDoc.containsKey("token")) {
+    Serial.println("Erreur parsing JSON ou token absent");
+    return;
+  }
+
+  jwtToken = resDoc["token"].as<String>();
 }
