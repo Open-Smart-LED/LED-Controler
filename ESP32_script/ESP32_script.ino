@@ -20,7 +20,7 @@ const char* GetColorURL = "http://192.168.1.109:1908/rgb/";
 const char* jwtURL = "http://192.168.1.109:1908/jwt/";
 
 // Initialization JWT token
-String jwtToken = "";
+String jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IkExQjJDM0Q0RTUiLCJleHAiOjE3NzU2MDAwNTh9.XXel9TqFjlFl5nTHclYe-nFhEV4kKb18-PcyTF1Oc70";
 
 // Default LED GPIO
 int ledPin = 10;
@@ -154,36 +154,4 @@ void loop() {
   Serial.println("Couleur appliquée !");
   
   delay(180000);
-}
-
-void getTokenJWT() {
-  HTTPClient http;
-  http.begin(client, jwtURL);
-  http.addHeader("Content-Type", "application/json");
-
-  StaticJsonDocument<200> jsonDoc;
-  jsonDoc["espID"] = "IW2F4LBWN0";
-  String jsonString;
-  serializeJson(jsonDoc, jsonString);
-
-  int httpResponseCode = http.POST(jsonString);
-  Serial.println(httpResponseCode);
-
-  if (httpResponseCode != 200) {
-    Serial.println(http.getString());
-    http.end();
-    return;
-  }
-
-  String response = http.getString();
-  http.end();
-
-  StaticJsonDocument<512> resDoc;
-  DeserializationError error = deserializeJson(resDoc, response);
-  if (error || !resDoc.containsKey("token")) {
-    Serial.println("Erreur parsing JSON ou token absent");
-    return;
-  }
-
-  jwtToken = resDoc["token"].as<String>();
 }
