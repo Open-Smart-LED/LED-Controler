@@ -8,19 +8,21 @@
 #include "mbedtls/base64.h"
 #include <Wire.h>
 #include "Adafruit_AS7341.h"
+#include "values.h"
 
 // Wifi values
 const char* ssid = "Freebox-4ACC21";
 const char* password = "imbibere2-evici3.-suberat?-exultetis";
+
+// ESP id
+uint64_t chipId = ESP.getEfuseMac();
+String ESPid = String((uint32_t)(chipId >> 32), HEX);
 
 // API values
 const char* ConfigURL = "http://192.168.1.109:1908/config/";
 const char* TestURL = "http://192.168.1.109:1908/";
 const char* GetColorURL = "http://192.168.1.109:1908/rgb/";
 const char* jwtURL = "http://192.168.1.109:1908/jwt/";
-
-// Initialization JWT token
-String jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IkExQjJDM0Q0RTUiLCJleHAiOjE3NzU2MDAwNTh9.XXel9TqFjlFl5nTHclYe-nFhEV4kKb18-PcyTF1Oc70";
 
 // Default LED GPIO
 int ledPin = 10;
